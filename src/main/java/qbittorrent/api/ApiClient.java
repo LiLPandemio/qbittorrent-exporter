@@ -34,6 +34,11 @@ public class ApiClient {
     private final String password;
     private String authCookie;
 
+    private String replaceCommasWithDots(String json) {
+        // Utiliza una expresión regular para encontrar valores decimales con comas
+        return json.replaceAll("(\\d),(\\d)", "$1.$2");
+    }    
+
     public ApiClient(final String baseUrl, final String username, final String password) {
         this.baseUrl = baseUrl;
         LOGGER.info("Using qBittorrent url {}", baseUrl);
@@ -123,17 +128,17 @@ public class ApiClient {
             LOGGER.info("Authorization cookie has not been set, we need to login first.");
             login(username, password);
         }
-
+    
         final String url = baseUrl + "/api/v2" + apiUrl;
         final HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
             .header("Cookie", "SID=" + authCookie)
             .GET()
             .build();
-
+    
         try {
             final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
+    
             final int statusCode = response.statusCode();
             LOGGER.info("Response from {} endpoint was {}.", apiUrl, statusCode);
             if (statusCode == 403 && retries != 0) {
@@ -146,9 +151,10 @@ public class ApiClient {
             } else if (statusCode != 200) {
                 throw new ApiException("An error occurred calling " + url + ": (" + statusCode + ") " + response.body());
             }
+    
             final String body = response.body();
             LOGGER.trace("JSON result from {} call: {}", apiUrl, body);
-            return body;
+            return replaceCommasWithDots(body);
         } catch (IOException e) {
             throw new ApiException("Could not make request to the qBittorrent API. Is qBittorrent up?", e);
         } catch (InterruptedException e) {
@@ -156,7 +162,7 @@ public class ApiClient {
             throw new ApiException("Thread was interrupted while making GET request to " + url, e);
         }
     }
-
+    
     private <T> T getRequest(String apiUrl, TypeToken<T> token) {
         String json = getRequest(apiUrl);
         return gson.fromJson(json, token.getType());
